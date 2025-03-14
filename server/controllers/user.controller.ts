@@ -2,7 +2,7 @@ import {Request,Response,NextFunction} from "express"
 import userModel,{IUser} from "../models/user.models.ts"
 import ErrorHandler from "../utils/ErrorHandler.ts"
 import {catchAsyncError} from "../middleware/catchAsyncError.ts"
-import jwt from "jsonwebtoken";
+import jwt, { Secret } from "jsonwebtoken";
 import dotenv from "dotenv"
 dotenv.config()
 import ejs from "ejs"
@@ -80,4 +80,45 @@ export const createActivationToken = (user:any) : IActivationToken  => {
 
     return {token,activationcode}
 }
+
+interface IActivationRequest {
+    activation_token : string,
+    activation_code : string
+}
+
+export const activateUser = catchAsyncError(async(req:Request,res:Response,next:NextFunction) => {
+    try {
+        const {activation_token,activation_code} = req.body as IActivationRequest;
+
+        
+
+        const newUser : {user : IUser;activationcode:string} = jwt.verify(activation_token,process.env.ACTIVATION_SECRET as string) as {user : IUser,activationcode:string}
+
+        
+        if(newUser.activationcode !== activation_code){
+            return next(new ErrorHandler("Invalid activation code",400))
+        }
+
+        const {name,email,password} = newUser.user
+        const existUser = await userModel.findOne({email})
+
+        if(existUser){
+            return next(new ErrorHandler("Emaik already exist",400))
+        }
+
+        const user = await userModel.create({
+            name,
+            email,
+            password
+        })
+
+        res.status(200).json({
+            success : true
+        })
+
+    } catch (error:any) {
+        return next(new ErrorHandler(error.message,400))
+    }
+})
+
 
