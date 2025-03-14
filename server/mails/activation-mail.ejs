@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Activation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            text-align: center;
+            padding: 20px;
+        }
+        .container {
+            max-width: 500px;
+            margin: auto;
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+        }
+        .button {
+            background-color: #6E0AB4;
+            color: #ffffff;
+            padding: 10px 20px;
+            text-decoration: none;
+            font-size: 18px;
+            border-radius: 5px;
+            display: inline-block;
+            margin-top: 20px;
+        }
+        .button:hover {
+            background-color: #5A0A90;
+        }
+        .footer {
+            margin-top: 20px;
+            font-size: 14px;
+            color: #555;
+        }
+        .contact {
+            color: #6E0AB4;
+            text-decoration: none;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Welcome, <%= name %>!</h2>
+        <p>Thank you for registering. Please click the button below to activate your account:</p>
+        <a href="<%= activationLink %>" class="button">Activate Account</a>
+        <p><strong>Note:</strong> This activation link will expire in 5 minutes.</p>
+        <p>If you need further assistance, please contact us at <a href="mailto:nihalpanday2020@gmail.com" class="contact">nihalpanday2020@gmail.com</a>.</p>
+        <p>If you didn't request this, please ignore this email.</p>
+    </div>
+</body>
+</html>
