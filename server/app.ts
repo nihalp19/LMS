@@ -4,7 +4,8 @@ export const app = express()
 import cors from "cors"
 import cookieParse from "cookie-parser"
 dotenv.config()
-import MiddlewareError from "./middleware/error.js"
+import MiddlewareError from "./middleware/error.ts"
+import userRoutes from "./routes/user.routes.ts"
 
 
 app.use(express.json({ limit: "50mb" }))
@@ -13,6 +14,7 @@ app.use(cors({
     origin: process.env.ORIGIN
 }))
 
+app.use("/api/v1",userRoutes)
 
 app.get("/", (req: Request, res: Response, next: NextFunction) => {
     res.status(200).json({

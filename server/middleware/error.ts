@@ -1,4 +1,4 @@
-import ErrorHandler from "../utils/ErrorHandler.js";
+import ErrorHandler from "../utils/ErrorHandler.ts";
 import { Request, NextFunction, Response } from "express"
 
 

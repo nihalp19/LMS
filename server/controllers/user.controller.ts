@@ -1,12 +1,19 @@
 import {Request,Response,NextFunction} from "express"
-import userModel,{IUser} from "../models/user.models"
-import ErrorHandler from "../utils/ErrorHandler"
-import {catchAsyncError} from "../middleware/catchAsyncError"
+import userModel,{IUser} from "../models/user.models.ts"
+import ErrorHandler from "../utils/ErrorHandler.ts"
+import {catchAsyncError} from "../middleware/catchAsyncError.ts"
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv"
 dotenv.config()
 import ejs from "ejs"
 import path from "path"
+import sendMail from "../sendMails.ts";
+import { fileURLToPath } from 'url';
+
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 
 interface IRegistrationBody{
     name : string,
@@ -37,13 +44,25 @@ export const RegistrationUser = catchAsyncError(async(req:Request,res : Response
 
 
         try {
-            
-        } catch (error) {
-            
+            await sendMail({
+                email : user.email,
+                subject: "Activate your account",
+                template : "activation-mail.ejs",
+                data,
+            })
+
+            res.status(201).json({
+                success : true,
+                message : `Please check your email : ${user.email} to activate your account`,
+                activationToken : activationToken.token
+            })
+
+        } catch (error : any) {
+            return next(new ErrorHandler(error.message,400))
         }
 
-    } catch (error) {
-        
+    } catch (error :any) {
+        return next(new ErrorHandler(error.message,400))
     }
 })
 
