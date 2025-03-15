@@ -5,6 +5,15 @@ import ErrorHandler from "../utils/ErrorHandler.ts"
 import { catchAsyncError } from "./catchAsyncError.ts"
 import jwt, { JwtPayload } from "jsonwebtoken"
 import { redis } from "../utils/redis.ts"
+import { IUser } from "../models/user.models.ts"
+
+declare global {
+    namespace Express {
+        interface Request {
+            user?: IUser;
+        }
+    }
+}
 
 export const isAuthenticated = catchAsyncError(async (req: Request, res: Response, next: NextFunction) => {
     const access_token = req.cookies.access_token;
@@ -19,13 +28,25 @@ export const isAuthenticated = catchAsyncError(async (req: Request, res: Respons
         return next(new ErrorHandler("access token is not valid", 400))
     }
 
-    const user = await redis.get(decoded.id)
+    const user = await redis.get(decoded.id);
+
+    console.log("Retrieved user from Redis:", user, "Type:", typeof user); // Debugging
 
     if (!user) {
-        return next(new ErrorHandler("user not found", 400))
+        return next(new ErrorHandler("User not found", 400));
     }
 
-    req.user = JSON.parse(user as string)
-    next()
+    req.user = user as IUser;
+    console.log(req)
+    next();
 
 })
+
+
+export const authorization = (...roles : string[]) => {
+    return (req:Request,res:Response,next:NextFunction) => {
+        if(!roles.includes(req.user?.role || '')){
+            return next(new ErrorHandler(`Role ${req.user?.role} is not allowed to access this resource`,403))
+        }
+    }
+}

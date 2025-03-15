@@ -22,7 +22,8 @@
     "server.ts",
     "register.ts",
     "src/**/*.ts",
-    "@types/custom.d.ts"
+    "@types/custom.d.ts",
+    "@types/**/*.d.ts"
   ],
   "exclude": [
     "node_modules"
