@@ -12,14 +12,17 @@
     "outDir": "./dist",
     "baseUrl": ".",
     "paths": {
-      "*": ["node_modules/*"]
+      "*": [
+        "node_modules/*"
+      ]
     },
     "noEmit": true // Add this line
   },
   "include": [
     "server.ts",
     "register.ts",
-    "src/**/*.ts"
+    "src/**/*.ts",
+    "@types/custom.d.ts"
   ],
   "exclude": [
     "node_modules"

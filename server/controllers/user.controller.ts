@@ -159,6 +159,7 @@ export const logoutUser = catchAsyncError(async(req:Request,res:Response,next:Ne
         res.cookie("access_token","",{maxAge : 1})
         res.cookie("refresh_token","",{maxAge : 1})
 
+
         res.status(200).json({
             success : true,
             message : "Logout successfully"
