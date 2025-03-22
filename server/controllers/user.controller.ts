@@ -13,6 +13,7 @@ import { sendToken } from "../utils/jwt.ts"
 import { redis } from "../utils/redis.ts";
 import { accessTokenOptions, refreshTokenOptions } from "../utils/jwt.ts";
 import { getUserId } from "../services/user.services.ts"
+import cloudinary from "../utils/cloudinary.ts"
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -272,21 +273,21 @@ export const updateUserInfo = catchAsyncError(async (req: Request, res: Response
         if (email && user) {
             const isEmailExist = await userModel.findOne({ email })
             if (isEmailExist) {
-                return next(new ErrorHandler("Email already exist",400))
+                return next(new ErrorHandler("Email already exist", 400))
             }
             user.email = email
         }
 
-        if(name && user){
+        if (name && user) {
             user.name = name;
         }
 
         await user?.save()
 
-        await redis.set(userId,JSON.stringify(user))
+        await redis.set(userId, JSON.stringify(user))
 
         res.status(201).json({
-            success : true,
+            success: true,
             user
         })
 
@@ -297,31 +298,93 @@ export const updateUserInfo = catchAsyncError(async (req: Request, res: Response
 
 
 interface IUpdateUserInfo {
-    oldPassword : string;
-    newPassword : string;
+    oldPassword: string;
+    newPassword: string;
 }
 
-export const updatePassword = catchAsyncError(async(req:Request,res:Response,next:NextFunction) => {
+export const updatePassword = catchAsyncError(async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const {oldPassword,newPassword} = req.body as IUpdateUserInfo
+        const { oldPassword, newPassword } = req.body as IUpdateUserInfo
 
-        const user = req.user;
+        if (!oldPassword || !newPassword) {
+            return next(new ErrorHandler("Please enter new and old password", 400))
+        }
 
-        if(user?.password === undefined){
-            return next(new ErrorHandler("Invalid user",400))
+        const user = await userModel.findById(req.user?._id).select("+password")
+
+        if (user?.password === undefined) {
+            return next(new ErrorHandler("Invalid user", 400))
         }
 
         const isPasswordMatch = await user?.comparePassword(oldPassword)
 
-        if(!isPasswordMatch){
-           return next(new ErrorHandler("Invalid or password",400))
+        if (!isPasswordMatch) {
+            return next(new ErrorHandler("Invalid or password", 400))
         }
 
-        user.password = newPassword 
+        user.password = newPassword
         await user.save()
 
-    } catch (error : any) {
-        return next(new ErrorHandler(error.message,400))
+        await redis.set(user?._id as string, JSON.stringify(user))
+
+        res.status(200).json({
+            success: true,
+            message: "password is updated"
+        })
+
+    } catch (error: any) {
+        return next(new ErrorHandler(error.message, 400))
+    }
+})
+
+interface IUpdateProfilePicture {
+    avatar: string
+}
+
+export const updateProfilePicture = catchAsyncError(async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { avatar } = req.body as IUpdateProfilePicture
+
+        const userId = req.user?._id
+
+        const user = await userModel.findById(userId)
+
+        if (avatar && user) {
+            if (user?.avatar?.public_id) {
+                await cloudinary.uploader.destroy(user?.avatar?.public_id)
+                const myCloud = await cloudinary.uploader.upload(avatar, {
+                    folder: "avatars",
+                    width: "150"
+                })
+
+                user.avatar = {
+                    public_id: myCloud.public_id,
+                    url: myCloud.secure_url
+                }
+            } else {
+                const myCloud = await cloudinary.uploader.upload(avatar, {
+                    folder: "avatars",
+                    width: "150"
+                })
+
+                user.avatar = {
+                    public_id: myCloud.public_id,
+                    url: myCloud.secure_url
+                }
+
+            }
+        }
+
+        await user?.save()
+        await redis.set(userId as string,JSON.stringify(user))
+
+        res.status(200).json({
+            sucess : true,
+            user
+        })
+
+    } catch (error: any) {
+        return next(new ErrorHandler(error.message, 400))
     }
 })
 
