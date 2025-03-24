@@ -6,6 +6,7 @@ import cookieParse from "cookie-parser"
 dotenv.config()
 import MiddlewareError from "./middleware/error.ts"
 import userRoutes from "./routes/user.routes.ts"
+import courseRouter from "./routes/course.routes.ts"
 
 
 app.use(express.json({ limit: "50mb" }))
@@ -15,6 +16,7 @@ app.use(cors({
 }))
 
 app.use("/api/v1",userRoutes)
+app.use("/api/v1",courseRouter)
 
 app.get("/", (req: Request, res: Response, next: NextFunction) => {
     res.status(200).json({
