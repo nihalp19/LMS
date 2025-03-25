@@ -5,7 +5,10 @@ import cloudinary from "../utils/cloudinary.ts"
 import { createCourse } from "../services/courses.services.ts"
 import CourseModel from "../models/course.models.ts"
 import { redis } from "../utils/redis.ts"
-import mongoose from "mongoose"
+import mongoose, { Error } from "mongoose"
+import path from "path"
+import ejs from "ejs"
+import sendMail from "../sendMails.ts"
 
 
 export const uploadCourse = catchAsyncError(async (req: Request, res: Response, next: NextFunction) => {
@@ -89,20 +92,20 @@ export const getAllCourses = catchAsyncError(async (req: Request, res: Response,
 
         const isCacheExist = await redis.get("allCourses")
 
-        if(isCacheExist){
+        if (isCacheExist) {
             const courses = isCacheExist
-            
+
             res.status(200).json({
-                success : true,
+                success: true,
                 courses,
             })
-        }else{
+        } else {
             const courses = await CourseModel.find().select("-courseData.videoUrl -courseData.suggestion -courseData.questions -courseData.links")
 
-            await redis.set("allCourses",JSON.stringify(courses))
+            await redis.set("allCourses", JSON.stringify(courses))
 
             res.status(200).json({
-                success : true,
+                success: true,
                 courses
             })
         }
@@ -120,16 +123,16 @@ export const getAllCourses = catchAsyncError(async (req: Request, res: Response,
 })
 
 
-export const getCourseByUser = catchAsyncError(async(req:Request,res:Response,next:NextFunction) => {
+export const getCourseByUser = catchAsyncError(async (req: Request, res: Response, next: NextFunction) => {
     try {
         const userCourseList = req.user?.courses
 
         const courseId = req.params.id
 
-        const courseExits = userCourseList?.find((course:any) => course._id === courseId)
+        const courseExits = userCourseList?.find((course: any) => course._id === courseId)
 
-        if(!courseExits){
-            return next(new ErrorHandler("you are not eligible to access this course",404))
+        if (!courseExits) {
+            return next(new ErrorHandler("you are not eligible to access this course", 404))
         }
 
         const course = await CourseModel.findById(courseId)
@@ -137,8 +140,176 @@ export const getCourseByUser = catchAsyncError(async(req:Request,res:Response,ne
         const content = course?.courseData
 
         res.status(200).json({
-            success : true,
+            success: true,
             content
+        })
+
+    } catch (error: any) {
+        return next(new ErrorHandler(error.message, 500))
+    }
+})
+
+
+interface IAddQuestionData {
+    question: string,
+    courseId: string,
+    contentId: string
+}
+
+
+export const addQuestion = catchAsyncError(async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { question, courseId, contentId }: IAddQuestionData = req.body
+
+        const course = await CourseModel.findById(courseId)
+
+        if (!mongoose.Types.ObjectId.isValid(contentId)) {
+            return next(new ErrorHandler("Invalid content id", 400))
+        }
+
+
+        const courseContent = course?.courseData.find((item: any) => item._id.equals(contentId))
+
+        const newQuestion: any = {
+            user: req.user,
+            question,
+            questionReplies: []
+        }
+
+        courseContent?.questions.push(newQuestion)
+
+        await course?.save()
+        res.status(200).json({
+            success: true,
+            course
+        })
+    } catch (error: any) {
+        return next(new ErrorHandler(error.message, 500))
+    }
+})
+
+
+interface IAddAnswerData {
+    answer: string;
+    courseId: string;
+    contentId: string;
+    questionId: string;
+}
+
+
+export const addAnswer = catchAsyncError(async (req: Request, res: Response, next: NextFunction) => {
+    try {
+
+        const { answer, courseId, contentId, questionId }: IAddAnswerData = req.body
+
+        const course = await CourseModel.findById(courseId)
+
+        if (!mongoose.Types.ObjectId.isValid(contentId)) {
+            return next(new ErrorHandler("Invalid content id", 400))
+        }
+
+        const courseContent = course?.courseData.find((item: any) => item._id.equals(contentId))
+
+
+        if (!courseContent) {
+            return next(new ErrorHandler("Invalid content id", 400))
+        }
+
+        const question = courseContent?.questions?.find((item: any) => item._id.equals(questionId))
+
+
+        if (!question) {
+            return next(new ErrorHandler("Invalid question id", 400))
+        }
+
+        const newAnswer: any = {
+            user: req.user,
+            answer
+        }
+
+        question.questionReplies.push(newAnswer)
+
+        await course?.save()
+
+        if (req.user?._id === question.user._id) {
+
+        } else {
+            const data = {
+                name: question.user.name,
+                title: courseContent.title
+            }
+            const html = await ejs.renderFile(path.join(__dirname, "../mails/activation-mail.ejs"), data)
+
+            try {
+                await sendMail({
+                    email: question.user.email,
+                    subject: "Question Reply",
+                    template: "question-reply.ejs",
+                    data
+                })
+            } catch (error: any) {
+                return next(new ErrorHandler(error.message, 500))
+            }
+        }
+
+
+
+    } catch (error: any) {
+        return next(new ErrorHandler(error.message, 500))
+    }
+})
+
+
+interface IAddReviewData {
+    review: string;
+    courseId: string;
+    rating: number;
+    userId: string
+}
+
+
+export const addReview = catchAsyncError(async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const userCourseList = req.user?.courses
+
+        const courseId = req.params.id
+
+        const courseExits = userCourseList?.some((course: any) => course._id.toString() === courseId.toString())
+
+        if (!courseExits) {
+            return next(new ErrorHandler("Your are not eligible to access this course", 404))
+        }
+
+        const course = await CourseModel.findById(courseId)
+
+        const { review, rating } = req.body as IAddReviewData
+
+        const reviewData: any = {
+            user: req.user,
+            comment: review,
+            rating
+        }
+
+        course?.reviews.push(reviewData)
+
+        let avg = 0
+
+        course?.reviews.forEach((rev: any) => {
+            avg += rev.rating
+        })
+
+        if (course) {
+            course.ratings = avg / course?.reviews.length
+        }
+
+        const notification = {
+            title : "New Review Received",
+            message : `${req.user?.name} has given review in ${course?.name}`
+        }
+
+        res.status(200).json({
+            success : true,
+            course
         })
 
     } catch (error:any) {
@@ -146,89 +317,51 @@ export const getCourseByUser = catchAsyncError(async(req:Request,res:Response,ne
     }
 })
 
-
-interface IAddQuestionData{
-    question : string,
+interface IAddReviewData {
+    comment : string,
     courseId : string,
-    contentId : string
+    reviewId: string,
 }
 
 
-export const addQuestion = catchAsyncError(async(req:Request,res:Response,next:NextFunction) => {
+export const addReplyToReview = catchAsyncError(async(req:Request,res:Response,next:NextFunction) => {
+
     try {
-       const {question,courseId,contentId} : IAddQuestionData = req.body
-
-       const course = await CourseModel.findById(courseId)
-
-       if(!mongoose.Types.ObjectId.isValid(contentId)){
-        return next(new ErrorHandler("Invalid content id",400))
-       }
-
-
-       const courseContent = course?.courseData.find((item : any) => item._id.equals(contentId))
-
-       const newQuestion :any= {
-        user : req.user,
-        question,
-        questionReplies:[]
-       }
-
-       courseContent?.questions.push(newQuestion)
-
-       await course?.save()
-       res.status(200).json({
-        success : true,
-        course
-       })
-    } catch (error : any) {
-        return next(new ErrorHandler(error.message,500))
-    }
-})
-
-
-interface IAddAnswerData {
-    answer:string;
-    courseId : string;
-    contentId :string;
-    questionId : string;
-}
-
-
-export const addAnswer = catchAsyncError(async(req:Request,res:Response,next:NextFunction) => {
-    try {
-
-        const {answer,courseId,contentId,questionId} :IAddAnswerData = req.body
         
-       const course = await CourseModel.findById(courseId)
+        const {comment,courseId,reviewId} = req.body as IAddReviewData
 
-       if(!mongoose.Types.ObjectId.isValid(contentId)){
-        return next(new ErrorHandler("Invalid content id",400))
-       }
+        const course = await CourseModel.findById(courseId)
 
-       const courseContent = course?.courseData.find((item : any) => item._id.equals(contentId))
+        if(!course){
+            return next(new ErrorHandler("course not found",404))
+        }
 
-
-       if(!courseContent){
-        return next(new ErrorHandler("Invalid content id",400))
-       }
-
-       const question = courseContent?.questions?.find((item : any) => item._id.equals(questionId))
+        const review = course?.reviews?.find((rev:any) => rev._id.toString() === reviewId)
 
 
-       if(!question){
-        return next(new ErrorHandler("Invalid question id",400))
-       }
+        if(!review){
+           return next(new ErrorHandler("Review not found",404))
+        }
 
-       const newAnswer:any = {
-        user : req.user,
-        answer
-       }
+        const replyData :any = {
+            user : req.user,
+            comment
+        }
+       
+        if(!review.commentReplies){
+            review.commentReplies = []
+        }
 
-       question.questionReplies.push(newAnswer)
+        review.commentReplies?.push(replyData)
+        await course?.save()
 
-       await course?.save()
+        res.status(200).json({
+            success:true,
+            course
+        })
 
     } catch (error:any) {
         return next(new ErrorHandler(error.message,500))
     }
+
 })
